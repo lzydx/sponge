@@ -8,10 +8,15 @@
 //! Bytes are written on the "input" side and read from the "output"
 //! side.  The byte stream is finite: the writer can end the input,
 //! and then no more bytes can be written.
+using namespace std;
 class ByteStream {
   private:
     // Your code here -- add private members as necessary.
-
+    string m_data{};
+    const size_t m_capacity;
+    size_t m_writednum{0};
+    size_t m_readnum{0};
+    bool m_endinput{false};
     // Hint: This doesn't need to be a sophisticated data structure at
     // all, but if any of your tests are taking longer than a second,
     // that's a sign that you probably want to keep exploring
