@@ -2,7 +2,7 @@
 #define SPONGE_LIBSPONGE_BYTE_STREAM_HH
 
 #include <string>
-
+#include <array>
 //! \brief An in-order byte stream.
 
 //! Bytes are written on the "input" side and read from the "output"

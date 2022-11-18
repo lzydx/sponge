@@ -18,71 +18,75 @@ StreamReassembler::StreamReassembler(const size_t capacity) : _output(capacity),
 //! possibly out-of-order, from the logical stream, and assembles any newly
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
-    cout << _curindex << "  " << index << "  " << data.size() << "  " << _unassamblebytes << "  " << _unorderstring.begin()->first <<endl;
-    if(eof){
-        cout << "eof is " << index + data.size() << endl;;
-    }
-    if(index + data.size() <= _curindex) return;
-    int startindex = _curindex > index ? _curindex - index : 0;
+    if(index + data.size() < _curindex) return;
     if(eof) {
         _eofindex = index + data.size();
         _isvalideof = true;
     }
-    string tobeprocess = data.substr(startindex);
-    // cout << _curindex << "  "<< startindex << "  "<< _capacity - _curindex << "  "<< _curindex << "  "<< _curindex << endl;
-    if(index == _curindex || startindex != 0) {
+
+    string tobeprocess = data;
+
+    // find if overlapped
+    size_t realindex = index;
+
+    // find <----  if overlap
+    auto upperitem = _unorderstring.upper_bound(index);
+    if(upperitem != _unorderstring.begin()){
+        auto loweritem = prev(upperitem);
+        if(index <= loweritem->first + loweritem->second.size()){ // left point overlao
+            if(loweritem->first + loweritem->second.size() >= index + tobeprocess.size()) return; // all overlapped
+            tobeprocess = loweritem->second.substr(0, index - loweritem->first) + tobeprocess;
+            realindex = loweritem->first;
+            _unassamblebytes -= loweritem->second.size();
+            _unorderstring.erase(loweritem);
+        }
+    }
+
+    // find ----> if overlap
+    while(upperitem != _unorderstring.end() && upperitem->first <= realindex + tobeprocess.size()){
+        if(upperitem->first + upperitem->second.size() <= realindex + tobeprocess.size()){ // all overlapped
+            auto temp = upperitem;
+            upperitem = next(upperitem);
+            _unassamblebytes -= temp->second.size();
+            _unorderstring.erase(temp);
+        }
+        else{
+            _unassamblebytes -= upperitem->second.size();
+            tobeprocess = tobeprocess + upperitem->second.substr(realindex + tobeprocess.size() - upperitem->first);
+            _unorderstring.erase(upperitem);
+            break;
+        }
+    }
+
+
+    if(realindex == _curindex){
         size_t writebytes = 0;
         writebytes = _output.write(tobeprocess);
         _actualwrite += writebytes;
         _curindex += writebytes;
-        while(!_unorderstring.empty()){
-            auto item = _unorderstring.begin();
-            if(item->first > _curindex) break;
-            _unassamblebytes -= item->second.size();
-            string nextstring = item->second;
-            _unorderstring.erase(item);
-            // cout << nextstring<< "  " << _curindex<< "  " << item->first<< endl;
-            if(_curindex - item->first < nextstring.size()){
-                nextstring = nextstring.substr(_curindex - item->first);
-                writebytes = _output.write(nextstring);
-                _actualwrite += writebytes;
-                _curindex += writebytes;
-            }
-        }
     }
-    else if(index > _curindex) {
-        size_t realindex = index;
-        // find <----  if overlap
-        auto upperitem = _unorderstring.upper_bound(index);
-        if(upperitem != _unorderstring.begin()){
-            upperitem = prev(upperitem);
-            if(index < upperitem->first + upperitem->second.size()){ // left point overlao
-                realindex = upperitem->first + upperitem->second.size();
-                if(realindex >= index + tobeprocess.size()) return; // all overlapped
-                tobeprocess = tobeprocess.substr(realindex - index);
-            }
-        }
-        // find ----> if overlap
-        upperitem = _unorderstring.upper_bound(index);
-        while(upperitem != _unorderstring.end() && upperitem->first < realindex + tobeprocess.size()){
-            if(upperitem->first + upperitem->second.size() <= realindex + tobeprocess.size()){ // all overlapped
-                auto temp = upperitem;
-                upperitem = next(upperitem);
-                _unassamblebytes -= temp->second.size();
-                _unorderstring.erase(temp);
-            }
-            else{
-                _unassamblebytes -= realindex + tobeprocess.size() - upperitem->first;
-                upperitem->second = upperitem->second.substr(realindex + tobeprocess.size() - upperitem->first);
-            }
-        }
-        _unorderstring[realindex] = tobeprocess.substr(0, _capacity - _unassamblebytes);
+    else if(realindex < _curindex){
+        if(realindex + tobeprocess.size() <= _curindex) return; // all had been writed
+        tobeprocess = tobeprocess.substr(_curindex - realindex);
+        size_t writebytes = 0;
+        writebytes = _output.write(tobeprocess);
+        _actualwrite += writebytes;
+        _curindex += writebytes;
+    }
+    else{
+        _unorderstring[realindex] = tobeprocess.substr(0, min(_capacity - _unassamblebytes, tobeprocess.size()));
         _unassamblebytes += tobeprocess.size();
-        _unassamblebytes = min(_capacity, _unassamblebytes);
+        _unassamblebytes = min(_unassamblebytes, _capacity);
     }
+
     if(_actualwrite == _eofindex && _isvalideof == true) {
         _output.end_input();
     }
+    // cout << _curindex << "  " << index << "  " << data.size() << "  " << _unassamblebytes << "  " << _unorderstring.begin()->first <<endl;
+    // cout << "map is" <<endl;
+    // for(auto item = _unorderstring.begin(); item != _unorderstring.end(); item++){
+    //     cout << item-> first << " " << item->first + item->second.size()<< endl;
+    // }
     return ;
 }
 
