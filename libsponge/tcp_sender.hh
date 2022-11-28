@@ -8,8 +8,60 @@
 
 #include <functional>
 #include <queue>
-
+#include <iostream>
 //! \brief The "sender" part of a TCP implementation.
+
+class tcpTimer
+{
+private:
+    bool _isrunning = false;
+    // exponential backof may exceed uint16
+    uint32_t _rto = 0;
+    uint16_t _initime = 0;
+    size_t _existtime = 0;
+    unsigned int _consecutive_retransmissions = 0;
+
+public:
+    tcpTimer(uint16_t rto) { 
+      _rto = rto; 
+      _initime = rto; 
+    }
+    bool isrunning() { return _isrunning; }
+    void start() {
+      _isrunning = true;
+      _rto = _initime;
+      _existtime = 0;
+      _consecutive_retransmissions = 0;
+    }
+    void close() {
+      _isrunning = false;
+      _existtime = 0;
+      _consecutive_retransmissions = 0;
+    }
+    void restart(uint16_t _window_size) {
+      if(!isrunning()) return;
+      _existtime = 0;
+      if(_window_size != 0) {
+        _consecutive_retransmissions++;
+        _rto = 2 * _rto;
+      }
+    }
+    bool istimeout(const size_t ms_since_last_tick) {
+      if(!_isrunning) return false;
+      if(ms_since_last_tick + _existtime >= _rto) {
+        return true;
+      }
+      _existtime += ms_since_last_tick;
+      return false;
+    }
+    unsigned int get_consecutive_retransmissions() const{
+      return _consecutive_retransmissions;
+    }
+};
+
+
+
+
 
 //! Accepts a ByteStream, divides it up into segments and sends the
 //! segments, keeps track of which segments are still in-flight,
@@ -32,6 +84,19 @@ class TCPSender {
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
 
+    uint64_t _recv_ackno{0};
+
+    tcpTimer _timer;
+
+    size_t _bytes_in_flight = 0;
+
+    uint16_t _window_size = 1;
+
+    bool _synsend = false;
+
+    bool _finsend = false;
+    //! outbound queue of segments that the TCPSender wants sent
+    std::queue<TCPSegment> _segments_tracking{};
   public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
@@ -87,6 +152,9 @@ class TCPSender {
     //! \brief relative seqno for the next byte to be sent
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
     //!@}
+
+    // sent data 
+    void send_nonempty_segment(TCPSegment &seg);
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH
