@@ -113,7 +113,7 @@ class TCPSender {
     //!@{
 
     //! \brief A new acknowledgment was received
-    void ack_received(const WrappingInt32 ackno, const uint16_t window_size);
+    bool ack_received(const WrappingInt32 ackno, const uint16_t window_size);
 
     //! \brief Generate an empty-payload segment (useful for creating empty ACK segments)
     void send_empty_segment();
@@ -122,7 +122,7 @@ class TCPSender {
     void fill_window();
 
     //! \brief Notifies the TCPSender of the passage of time
-    void tick(const size_t ms_since_last_tick);
+    bool tick(const size_t ms_since_last_tick);
     //!@}
 
     //! \name Accessors
@@ -155,6 +155,10 @@ class TCPSender {
 
     // sent data 
     void send_nonempty_segment(TCPSegment &seg);
+
+    bool syn_send() { return _synsend; }
+
+    bool fin_send() { return _finsend; }
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH

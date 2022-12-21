@@ -77,10 +77,10 @@ void TCPSender::fill_window() {
 
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
-void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) { 
+bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) { 
     uint64_t abs_ackno = unwrap(ackno, _isn, _recv_ackno);
-    if(abs_ackno > _next_seqno) return ; // ack not send seg
-    if(_recv_ackno > abs_ackno) return ; // ack already acked-seg 
+    if(abs_ackno > _next_seqno) return false; // ack not send seg
+    if(_recv_ackno > abs_ackno) return true; // ack already acked-seg 
     
     // e.g _recvackno == absackno dont refresh timer
     if(_recv_ackno != abs_ackno)
@@ -88,8 +88,6 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     _recv_ackno = abs_ackno;
     _window_size = window_size;
     
-    
-
     while(!_segments_tracking.empty()) {
         const TCPSegment &tempseg = _segments_tracking.front();
         if(static_cast<int32_t>(tempseg.length_in_sequence_space()) <= ackno - tempseg.header().seqno) { // the last byte of send seg is seqno + data.size - 1
@@ -104,20 +102,24 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     if(_segments_tracking.empty()) {
         _timer.close();
     }
+
+    return true;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
-void TCPSender::tick(const size_t ms_since_last_tick) { 
-    if(!_synsend || !_timer.isrunning()) return;
+bool TCPSender::tick(const size_t ms_since_last_tick) { 
+    if(!_synsend || !_timer.isrunning()) return false;
     if(_segments_tracking.empty()) {
         _timer.close();
-        return ;
+        return false;
     }
     if(_timer.istimeout(ms_since_last_tick)) {
         auto timeoutseg = _segments_tracking.front();
         _segments_out.push(timeoutseg);
         _timer.restart(_window_size);
+        return true;
     }
+    return false;
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return this->_timer.get_consecutive_retransmissions(); }
