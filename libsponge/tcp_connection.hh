@@ -32,7 +32,7 @@ class TCPConnection {
   public:
     void fill_outqueue();
 
-    void set_rst();
+    void set_rst(bool sendrst);
 
     void test_end();
     bool in_syn_sent();
